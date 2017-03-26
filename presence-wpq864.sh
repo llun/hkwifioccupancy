@@ -10,6 +10,6 @@ do
       all="$mac\n$all"
     done
   done
-  echo $all > /tmp/presence.wifi
+  echo -e $all > /tmp/presence.wifi
   sleep 5
 done
