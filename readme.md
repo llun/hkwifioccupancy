@@ -1,6 +1,6 @@
 # hkwifioccupancy
 
-Wifi Occupancy Sensor homekit accessory for [HomeControl](https://github.com/brutella/hc)
+Wifi Occupancy Sensor for [HomeControl](https://github.com/brutella/hc)
 
 ## Sample Code for using with HC
 
