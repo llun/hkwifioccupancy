@@ -2,12 +2,12 @@ package wifioccupancy
 
 import (
   "io/ioutil"
-  "log"
   "os"
   "strings"
 
   "github.com/brutella/hc/accessory"
   "github.com/brutella/hc/characteristic"
+  "github.com/brutella/hc/log"
   "github.com/brutella/hc/service"
   "github.com/rjeczalik/notify"
 
@@ -38,6 +38,7 @@ func NewSensor(file string, addresses Set) *Sensor {
   acc.OccupancySensor = acc.createOccupancySensorSevice()
   acc.AddService(acc.OccupancySensor.Service)
   acc.watch()
+  log.Debug.Println("Wifi occupancy sensor is ready")
   return &acc
 }
 
@@ -53,13 +54,13 @@ func (s *Sensor) watch() {
   if _, err := os.Stat(s.file); os.IsNotExist(err) {
     _, err = os.Create(s.file)
     if err != nil {
-      log.Fatal(err)
+      log.Debug.Fatal(err)
     }
   }
 
   eventCh := make(chan notify.EventInfo, 1)
   if err := notify.Watch(s.file, eventCh, notify.Write); err != nil {
-    log.Fatal(err)
+    log.Debug.Fatal(err)
   }
 
   sensor := s.OccupancySensor
@@ -92,7 +93,7 @@ func (s *Sensor) createOccupancySensorSevice() *service.OccupancySensor {
 func (s *Sensor) isOccupied() bool {
   data, err := ioutil.ReadFile(s.file)
   if err != nil {
-    log.Fatal(err)
+    log.Debug.Fatal(err)
   }
 
   addresses := strings.Split(string(data), "\n")
@@ -101,5 +102,7 @@ func (s *Sensor) isOccupied() bool {
     currentSet.Add(address)
   }
 
-  return s.addresses.Intersect(currentSet).Cardinality() > 0
+  isOccupied := s.addresses.Intersect(currentSet).Cardinality() > 0
+  log.Debug.Printf("Is presence detected? %v", isOccupied)
+  return isOccupied
 }
