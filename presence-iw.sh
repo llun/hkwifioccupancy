@@ -13,6 +13,6 @@ do
       all="$mac\n$all"
     done
   done
-  echo $all > /var/lib/misc/presence.wifi
+  echo -e $all > /var/lib/misc/presence.wifi
 sleep 5
 done
