@@ -1,7 +1,7 @@
 #!/bin/sh
 while true
 do
-  all=""
+  all=`date`
   for interface in `iwconfig | grep 802.11 | cut -f 1 -s -d" "`
   do
     maclist=`wlanconfig $interface list | tail +2 | cut -f 1 -s -d" "`
@@ -10,6 +10,6 @@ do
       all="$mac\n$all"
     done
   done
-  echo -e $all > /tmp/presence.wifi
+  echo -e $all | tee /tmp/presence.wifi
   sleep 5
 done

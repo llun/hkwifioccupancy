@@ -1,7 +1,7 @@
 #!/bin/sh
 while true
 do
-  all=""
+  all=`date`
   for interface in `iw dev | grep Interface | cut -f 2 -s -d" "`
   do
     # for each interface, get mac addresses of connected stations/clients
@@ -10,9 +10,9 @@ do
     # for each mac address in that list...
     for mac in $maclist
     do
-      all="$mac\n$all"
+      all="$all\n$mac"
     done
   done
-  echo -e $all > /var/lib/misc/presence.wifi
+  echo -e $all | tee /tmp/presence.wifi
 sleep 5
 done
