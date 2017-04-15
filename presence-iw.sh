@@ -1,7 +1,8 @@
 #!/bin/sh
 while true
 do
-  all=`date`
+  currentTime=`date`
+  all=""
   for interface in `iw dev | grep Interface | cut -f 2 -s -d" "`
   do
     # for each interface, get mac addresses of connected stations/clients
@@ -10,9 +11,15 @@ do
     # for each mac address in that list...
     for mac in $maclist
     do
-      all="$all\n$mac"
+      if [ -z $all ]; then
+        all=$mac
+      else
+        all="$all\n$mac"
+      fi
     done
   done
-  echo -e $all | tee /tmp/presence.wifi
+  if [ ! -z $all ]; then
+    echo -e "$currentTime\n$all" | tee /tmp/presence.wifi
+  fi
 sleep 5
 done
