@@ -14,11 +14,14 @@ import (
 )
 
 type NetlinkPresence struct {
-	addresses Set
+	watchedSet Set
+	currentSet Set
 }
 
 func NewNetlinkPresence(addresses Set) *NetlinkPresence {
-	return &NetlinkPresence{addresses}
+	return &NetlinkPresence{
+		watchedSet: addresses,
+	}
 }
 
 func (p *NetlinkPresence) Watch(monitor chan<- bool) error {
@@ -53,9 +56,13 @@ func (p *NetlinkPresence) Watch(monitor chan<- bool) error {
 			return err
 		}
 
-		for _, address := range addresses {
-			log.Info.Println(address.String())
+		macAddresses := make([]interface{}, len(addresses))
+		for idx, value := range addresses {
+			macAddresses[idx] = value
 		}
+
+		p.currentSet = NewSet(macAddresses...)
+		monitor <- p.IsOccupied()
 
 		go func() {
 			defer connection.Close()
@@ -70,14 +77,19 @@ func (p *NetlinkPresence) Watch(monitor chan<- bool) error {
 					header := message.Header
 					switch header.Command {
 					case nlgo.NL80211_CMD_DEL_STATION:
-						log.Info.Println("Delete station")
 						attrs, _ := p.getAttributes(message.Data)
-						log.Info.Println(net.HardwareAddr(attrs[nlgo.NL80211_ATTR_MAC].Data).String())
+						station := net.HardwareAddr(attrs[nlgo.NL80211_ATTR_MAC].Data).String()
+						p.currentSet.Remove(station)
+						log.Info.Printf("%v is disconnected", station)
+						monitor <- p.IsOccupied()
 					case nlgo.NL80211_CMD_NEW_STATION:
-						log.Info.Println("New station")
 						attrs, _ := p.getAttributes(message.Data)
-						log.Info.Println(net.HardwareAddr(attrs[nlgo.NL80211_ATTR_MAC].Data).String())
+						station := net.HardwareAddr(attrs[nlgo.NL80211_ATTR_MAC].Data).String()
+						p.currentSet.Add(station)
+						log.Info.Printf("%v is connected", station)
+						monitor <- p.IsOccupied()
 					}
+
 				}
 			}
 		}()
@@ -87,7 +99,10 @@ func (p *NetlinkPresence) Watch(monitor chan<- bool) error {
 }
 
 func (p *NetlinkPresence) IsOccupied() bool {
-	return false
+	log.Info.Println("Current: ", p.currentSet)
+	log.Info.Println("Watched: ", p.watchedSet)
+	isOccupied := p.currentSet.Intersect(p.watchedSet).Cardinality() > 0
+	return isOccupied
 }
 
 func (p *NetlinkPresence) getMulticastGroups(groups []genetlink.MulticastGroup) map[string]genetlink.MulticastGroup {
@@ -110,7 +125,7 @@ func (p *NetlinkPresence) getAttributes(data []byte) (map[uint16]netlink.Attribu
 	}
 }
 
-func (p *NetlinkPresence) getAllStations(connection *genetlink.Conn) ([]net.HardwareAddr, error) {
+func (p *NetlinkPresence) getAllStations(connection *genetlink.Conn) ([]string, error) {
 	if family, err := connection.Family.Get(nlgo.NL80211_GENL_NAME); err != nil {
 		if os.IsNotExist(err) {
 			log.Info.Printf("%q family not available", nlgo.NL80211_GENL_NAME)
@@ -132,7 +147,7 @@ func (p *NetlinkPresence) getAllStations(connection *genetlink.Conn) ([]net.Hard
 			return nil, err
 		}
 
-		var stations []net.HardwareAddr
+		var stations []string
 		for _, msg := range msgs {
 			req = genetlink.Message{
 				Header: genetlink.Header{
@@ -154,7 +169,7 @@ func (p *NetlinkPresence) getAllStations(connection *genetlink.Conn) ([]net.Hard
 					return nil, err
 				}
 
-				stations = append(stations, net.HardwareAddr(attrs[nlgo.NL80211_ATTR_MAC].Data))
+				stations = append(stations, net.HardwareAddr(attrs[nlgo.NL80211_ATTR_MAC].Data).String())
 			}
 		}
 		return stations, nil
