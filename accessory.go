@@ -42,6 +42,7 @@ func NewSensor(file string, addresses Set) *Sensor {
 	} else {
 		acc.presence = NewNetlinkPresence(addresses)
 	}
+	acc.watch()
 
 	log.Info.Println("Wifi occupancy sensor is ready")
 	return &acc
@@ -60,4 +61,24 @@ func (s *Sensor) createOccupancySensorSevice() *service.OccupancySensor {
 	detector := sensor.OccupancyDetected
 	detector.SetValue(characteristic.OccupancyDetectedOccupancyNotDetected)
 	return sensor
+}
+
+func (s *Sensor) watch() {
+	isOccupiedCh := make(chan bool, 16)
+	err := s.presence.Watch(isOccupiedCh)
+	if err != nil {
+		log.Info.Fatal(err)
+	}
+
+	sensor := s.OccupancySensor
+	detector := sensor.OccupancyDetected
+	go func() {
+		for isOccupied := range isOccupiedCh {
+			if isOccupied {
+				detector.SetValue(characteristic.OccupancyDetectedOccupancyDetected)
+			} else {
+				detector.SetValue(characteristic.OccupancyDetectedOccupancyNotDetected)
+			}
+		}
+	}()
 }
