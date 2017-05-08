@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net"
 	"os"
+	"time"
 
 	"github.com/brutella/hc/log"
 	"github.com/hkwi/nlgo"
@@ -64,38 +65,58 @@ func (p *NetlinkPresence) Watch(monitor chan<- bool) error {
 		p.currentSet = NewSet(macAddresses...)
 		monitor <- p.IsOccupied()
 
-		go func() {
-			defer connection.Close()
-
-			for {
-				messages, _, err := connection.Receive()
-				if err != nil {
-					log.Info.Fatalf("failed to receive messages: %v", err)
-				}
-
-				for _, message := range messages {
-					header := message.Header
-					switch header.Command {
-					case nlgo.NL80211_CMD_DEL_STATION:
-						attrs, _ := p.getAttributes(message.Data)
-						station := net.HardwareAddr(attrs[nlgo.NL80211_ATTR_MAC].Data).String()
-						p.currentSet.Remove(station)
-						log.Info.Printf("%v is disconnected", station)
-						monitor <- p.IsOccupied()
-					case nlgo.NL80211_CMD_NEW_STATION:
-						attrs, _ := p.getAttributes(message.Data)
-						station := net.HardwareAddr(attrs[nlgo.NL80211_ATTR_MAC].Data).String()
-						p.currentSet.Add(station)
-						log.Info.Printf("%v is connected", station)
-						monitor <- p.IsOccupied()
-					}
-
-				}
-			}
-		}()
+		go p.ReceivingNetlinkEvent(connection, monitor)
+		go p.PollingStation(connection, monitor)
 	}
 
 	return nil
+}
+
+func (p *NetlinkPresence) ReceivingNetlinkEvent(connection *genetlink.Conn, monitor chan<- bool) {
+	for {
+		messages, _, err := connection.Receive()
+		if err != nil {
+			log.Info.Fatalf("failed to receive messages: %v", err)
+		}
+
+		for _, message := range messages {
+			header := message.Header
+			switch header.Command {
+			case nlgo.NL80211_CMD_DEL_STATION:
+				attrs, _ := p.getAttributes(message.Data)
+				station := net.HardwareAddr(attrs[nlgo.NL80211_ATTR_MAC].Data).String()
+				p.currentSet.Remove(station)
+				log.Info.Printf("%v is disconnected", station)
+				monitor <- p.IsOccupied()
+			case nlgo.NL80211_CMD_NEW_STATION:
+				attrs, _ := p.getAttributes(message.Data)
+				station := net.HardwareAddr(attrs[nlgo.NL80211_ATTR_MAC].Data).String()
+				p.currentSet.Add(station)
+				log.Info.Printf("%v is connected", station)
+				monitor <- p.IsOccupied()
+			}
+
+		}
+	}
+}
+
+func (p *NetlinkPresence) PollingStation(connection *genetlink.Conn, monitor chan<- bool) {
+	// For device deauthenticated without disassociated
+	tickerCh := time.Tick(5 * time.Second)
+	for range tickerCh {
+		addresses, err := p.getAllStations(connection)
+		if err != nil {
+			continue
+		}
+
+		macAddresses := make([]interface{}, len(addresses))
+		for idx, value := range addresses {
+			macAddresses[idx] = value
+		}
+
+		p.currentSet = NewSet(macAddresses...)
+		monitor <- p.IsOccupied()
+	}
 }
 
 func (p *NetlinkPresence) IsOccupied() bool {
