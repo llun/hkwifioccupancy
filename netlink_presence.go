@@ -66,7 +66,7 @@ func (p *NetlinkPresence) Watch(monitor chan<- bool) error {
 		monitor <- p.IsOccupied()
 
 		go p.ReceivingNetlinkEvent(connection, monitor)
-		go p.PollingStation(connection, monitor)
+		go p.PollingStation(monitor)
 	}
 
 	return nil
@@ -76,7 +76,7 @@ func (p *NetlinkPresence) ReceivingNetlinkEvent(connection *genetlink.Conn, moni
 	for {
 		messages, _, err := connection.Receive()
 		if err != nil {
-			log.Info.Fatalf("failed to receive messages: %v", err)
+			log.Debug.Printf("failed to receive messages: %v", err)
 		}
 
 		for _, message := range messages {
@@ -100,7 +100,13 @@ func (p *NetlinkPresence) ReceivingNetlinkEvent(connection *genetlink.Conn, moni
 	}
 }
 
-func (p *NetlinkPresence) PollingStation(connection *genetlink.Conn, monitor chan<- bool) {
+func (p *NetlinkPresence) PollingStation(monitor chan<- bool) {
+	connection, err := genetlink.Dial(nil)
+	if err != nil {
+		log.Debug.Printf("Cannot polling because of error: %v", err)
+		return
+	}
+
 	// For device deauthenticated without disassociated
 	tickerCh := time.Tick(5 * time.Second)
 	for range tickerCh {
@@ -120,8 +126,8 @@ func (p *NetlinkPresence) PollingStation(connection *genetlink.Conn, monitor cha
 }
 
 func (p *NetlinkPresence) IsOccupied() bool {
-	log.Info.Println("Current: ", p.currentSet)
-	log.Info.Println("Watched: ", p.watchedSet)
+	log.Debug.Println("Current: ", p.currentSet)
+	log.Debug.Println("Watched: ", p.watchedSet)
 	isOccupied := p.currentSet.Intersect(p.watchedSet).Cardinality() > 0
 	return isOccupied
 }
