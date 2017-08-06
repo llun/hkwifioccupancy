@@ -130,7 +130,11 @@ func (p *NetlinkPresence) IsOccupied() bool {
 	log.Debug.Println("Watched: ", p.watchedSet)
 	// TODO: Add option to check all/atleast one.
 	// Current rule is all
-	isOccupied := p.currentSet.Intersect(p.watchedSet).Cardinality() == p.watchedSet.Cardinality()
+	existing := p.currentSet.Intersect(p.watchedSet)
+	log.Debug.Printf("Existing: %v, %v, %v\n", existing, existing.Cardinality(), p.watchedSet.Cardinality())
+	isOccupied := existing.Cardinality() == p.watchedSet.Cardinality()
+	log.Debug.Println("isOccupied: ", isOccupied)
+
 	return isOccupied
 }
 
