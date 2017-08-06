@@ -128,7 +128,9 @@ func (p *NetlinkPresence) PollingStation(monitor chan<- bool) {
 func (p *NetlinkPresence) IsOccupied() bool {
 	log.Debug.Println("Current: ", p.currentSet)
 	log.Debug.Println("Watched: ", p.watchedSet)
-	isOccupied := p.currentSet.Intersect(p.watchedSet).Cardinality() > 0
+	// TODO: Add option to check all/atleast one.
+	// Current rule is all
+	isOccupied := p.currentSet.Intersect(p.watchedSet).Cardinality() == p.watchedSet.Cardinality()
 	return isOccupied
 }
 
